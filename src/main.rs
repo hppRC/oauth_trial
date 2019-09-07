@@ -93,7 +93,16 @@ fn get_request_header(endpoint: &str) -> String {
         &params
     );
 
-    "".to_string()
+    format!(
+        "OAuth oauth_nonce=\"{}\", oauth_callback=\"{}\", oauth_signature_method=\"{}\", oauth_timestamp=\"{}\", oauth_consumer_key=\"{}\", oauth_signature=\"{}\", oauth_version=\"{}\"",
+        utf8_percent_encode(oauth_nonce, FRAGMENT),
+        utf8_percent_encode(oauth_callback, FRAGMENT),
+        utf8_percent_encode(oauth_signature_method, FRAGMENT),
+        utf8_percent_encode(oauth_timestamp, FRAGMENT),
+        utf8_percent_encode(oauth_consumer_key, FRAGMENT),
+        utf8_percent_encode(oauth_signature, FRAGMENT),
+        utf8_percent_encode(oauth_version, FRAGMENT),
+    )
 }
 
 
@@ -104,10 +113,25 @@ fn get_request_token() -> RequestToken {
     headers.insert(AUTHORIZATION, header_auth.parse().unwrap());
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/x-www-form-urlencoded"));
 
+    let client = reqwest::Client::new();
+
+    let res: String = client
+        .post(endpoint)
+        .headers(headers)
+        .send()
+        .unwrap()
+        .text()
+        .unwrap();
+
+    let res_values: Vec<&str> = (&res)
+        .split('&')
+        .map(|s| s.split('=').collect::<Vec<&str>>()[1])
+        .collect();
+
     RequestToken {
-        oauth_token: "".to_string(),
-        oauth_token_secret: "".to_string(),
-        oauth_callback_confirmed: "".to_string()
+        oauth_token: res_values[0].to_string(),
+        oauth_token_secret: res_values[1].to_string().to_string(),
+        oauth_callback_confirmed: res_values[2].to_string(),
     }
 }
 
