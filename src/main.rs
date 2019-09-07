@@ -1,5 +1,15 @@
+use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use reqwest::header::*;
 use chrono::Utc;
+
+const FRAGMENT: &AsciiSet = &CONTROLS
+    .add(b'!').add(b'"').add(b'#').add(b'$').add(b'%')
+    .add(b'&').add(b'\'').add(b'(').add(b')').add(b'+')
+    .add(b',').add(b'/').add(b':').add(b';').add(b'<')
+    .add(b'=').add(b'>').add(b'?').add(b'@').add(b'[')
+    .add(b'\\').add(b']').add(b'^').add(b'`').add(b'{')
+    .add(b'|').add(b'}').add(b'~').add(b' ');
+
 
 #[derive(Clone,Debug)]
 struct RequestToken {
@@ -25,7 +35,37 @@ fn create_oauth_signature(
     oauth_token_secret: &str,
     params: &std::collections::HashMap<&str, &str>
 ) -> String {
-    "".to_string()
+    let cs_encoded = utf8_percent_encode(oauth_consumer_secret, FRAGMENT);
+    let ts_encoded = utf8_percent_encode(oauth_token_secret, FRAGMENT);
+    let key: String = format!("{}&{}", cs_encoded, ts_encoded);
+
+    let mut param: String = format!("");
+    let mut params: Vec<(&&str, &&str)> = params.into_iter().collect();
+    params.sort();
+
+    for i in 0..params.len()-1 {
+        let &(k, v) = &params[i];
+        param = format!("{}{}={}&",
+            param,
+            utf8_percent_encode(k, FRAGMENT),
+            utf8_percent_encode(v, FRAGMENT),
+        );
+    }
+    let &(k, v) = &params[params.len()-1];
+    param = format!("{}{}={}",
+        param,
+        utf8_percent_encode(k, FRAGMENT),
+        utf8_percent_encode(v, FRAGMENT),
+    );
+
+    let http_method_encoded = utf8_percent_encode(http_method, FRAGMENT);
+    let endpoint_encoded = utf8_percent_encode(endpoint, FRAGMENT);
+    let param_encoded = utf8_percent_encode(&param, FRAGMENT);
+
+    let data = format!("{}&{}&{}", http_method_encoded, endpoint_encoded, param_encoded);
+
+    let hash = hmacsha1::hmac_sha1(key.as_bytes(), data.as_bytes());
+    base64::encode(&hash)
 }
 
 fn get_request_header(endpoint: &str) -> String {
