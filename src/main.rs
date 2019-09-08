@@ -2,13 +2,11 @@ use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use reqwest::header::*;
 use chrono::Utc;
 
-const FRAGMENT: &AsciiSet = &CONTROLS
-    .add(b'!').add(b'"').add(b'#').add(b'$').add(b'%')
-    .add(b'&').add(b'\'').add(b'(').add(b')').add(b'+')
-    .add(b',').add(b'/').add(b':').add(b';').add(b'<')
-    .add(b'=').add(b'>').add(b'?').add(b'@').add(b'[')
-    .add(b'\\').add(b']').add(b'^').add(b'`').add(b'{')
-    .add(b'|').add(b'}').add(b'~').add(b' ');
+const FRAGMENT: &AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+    .remove(b'*')
+    .remove(b'-')
+    .remove(b'.')
+    .remove(b'_');
 
 
 #[derive(Clone,Debug)]
@@ -39,24 +37,20 @@ fn create_oauth_signature(
     let ts_encoded = utf8_percent_encode(oauth_token_secret, FRAGMENT);
     let key: String = format!("{}&{}", cs_encoded, ts_encoded);
 
-    let mut param: String = format!("");
     let mut params: Vec<(&&str, &&str)> = params.into_iter().collect();
     params.sort();
 
-    for i in 0..params.len()-1 {
-        let &(k, v) = &params[i];
-        param = format!("{}{}={}&",
-            param,
-            utf8_percent_encode(k, FRAGMENT),
-            utf8_percent_encode(v, FRAGMENT),
-        );
-    }
-    let &(k, v) = &params[params.len()-1];
-    param = format!("{}{}={}",
-        param,
-        utf8_percent_encode(k, FRAGMENT),
-        utf8_percent_encode(v, FRAGMENT),
-    );
+    let param = params
+        .into_iter()
+        .map(|(k, v)| {
+            format!(
+                "{}={}",
+                utf8_percent_encode(k, FRAGMENT),
+                utf8_percent_encode(v, FRAGMENT)
+                )
+            })
+        .collect::<Vec<String>>()
+        .join("&");
 
     let http_method_encoded = utf8_percent_encode(http_method, FRAGMENT);
     let endpoint_encoded = utf8_percent_encode(endpoint, FRAGMENT);
